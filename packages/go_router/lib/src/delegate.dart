@@ -57,9 +57,13 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList>
   Future<bool> popRoute() async {
     final NavigatorState? state = _findCurrentNavigator();
     if (state != null) {
-      return state.maybePop();
+      final bool didPop = await state.maybePop(); // Call maybePop() directly
+      if (didPop) {
+        return true; // Return true if maybePop handled the pop
+      }
     }
-    // This should be the only place where the last GoRoute exit the screen.
+
+    // Fallback to onExit if maybePop did not handle the pop
     final GoRoute lastRoute = currentConfiguration.last.route;
     if (lastRoute.onExit != null && navigatorKey.currentContext != null) {
       return !(await lastRoute.onExit!(
@@ -68,6 +72,7 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList>
             .buildState(_configuration, currentConfiguration),
       ));
     }
+
     return false;
   }
 
@@ -97,21 +102,26 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList>
 
   NavigatorState? _findCurrentNavigator() {
     NavigatorState? state;
-    if (navigatorKey.currentState?.canPop() ?? false) {
-      state = navigatorKey.currentState;
-    }
+    state =
+        navigatorKey.currentState; // Set state directly without canPop check
+
     RouteMatchBase walker = currentConfiguration.matches.last;
     while (walker is ShellRouteMatch) {
       final NavigatorState potentialCandidate =
           walker.navigatorKey.currentState!;
-      if (!ModalRoute.of(potentialCandidate.context)!.isCurrent) {
-        // There is a pageless route on top of the shell route. it needs to be
-        // popped first.
+
+      final ModalRoute<dynamic>? modalRoute =
+          ModalRoute.of(potentialCandidate.context);
+
+      if (modalRoute == null || !modalRoute.isCurrent) {
+        // Stop if there is a pageless route on top of the shell route.
         break;
       }
+
       if (potentialCandidate.canPop()) {
         state = walker.navigatorKey.currentState;
       }
+
       walker = walker.matches.last;
     }
     return state;
