@@ -652,7 +652,7 @@ void main() {
           GoRouterState current,
           GoRouterState next,
           GoRouter goRouter,
-        ) {
+        ) async {
           onEnterCallCount++;
           capturedCurrentState = current;
           capturedNextState = next;

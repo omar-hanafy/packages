@@ -113,9 +113,12 @@ class GoRouteInformationParser extends RouteInformationParser<RouteMatchList> {
         return value;
       });
     }
-
+    
+    final OnEnter? topOnEnter = configuration.topOnEnter;
+    // since we can't use await here, a synchronous future is used
+    Future<bool> canEnterFuture = SynchronousFuture<bool>(true);
     // 3) Handle route interception via onEnter callback
-    if (configuration.topOnEnter != null) {
+    if (topOnEnter != null) {
       // Create route matches for the incoming navigation attempt
       final RouteMatchList onEnterMatches = configuration.findMatch(
         routeInformation.uri,
@@ -133,14 +136,15 @@ class GoRouteInformationParser extends RouteInformationParser<RouteMatchList> {
           : nextState;
 
       // Let the app decide if this navigation should proceed
-      final bool canEnter = configuration.topOnEnter!(
+      canEnterFuture = topOnEnter(
         context,
         currentState,
         nextState,
         GoRouter.maybeOf(context) ?? _fallbackRouter,
       );
+    }
 
-      // If navigation was intercepted (canEnter == false):
+    return canEnterFuture.then((bool canEnter) {
       if (!canEnter) {
         // Stay on current route if we have one
         if (_lastMatchList != null) {
@@ -156,8 +160,15 @@ class GoRouteInformationParser extends RouteInformationParser<RouteMatchList> {
           return SynchronousFuture<RouteMatchList>(fallbackMatches);
         }
       }
-    }
+      return _navigate(routeInformation, context, infoState);
+    });
+  }
 
+  Future<RouteMatchList> _navigate(
+        RouteInformation routeInformation,
+    BuildContext context,
+    RouteInformationState<dynamic> infoState,
+  ) {
     // 4) Normalize the URI path
     // We want consistent route matching regardless of trailing slashes
     // - Empty paths become "/"
