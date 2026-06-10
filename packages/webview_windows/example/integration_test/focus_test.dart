@@ -42,8 +42,10 @@ void main() {
     (tester) async {
       binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
       // Without this, the live test binding swallows real device pointer
-      // events instead of dispatching them to the widget tree.
+      // events instead of dispatching them to the widget tree. The binding
+      // requires the flag to be restored before the test ends.
       binding.shouldPropagateDevicePointerEvents = true;
+      addTearDown(() => binding.shouldPropagateDevicePointerEvents = false);
 
       final webviewController = WebviewController();
       await webviewController.initialize();
