@@ -49,152 +49,152 @@ void main() {
 
       final webviewController = WebviewController();
       try {
-      await webviewController.initialize();
+        await webviewController.initialize();
 
-      final navigationCompleted = webviewController.loadingState
-          .firstWhere((state) => state == LoadingState.navigationCompleted);
+        final navigationCompleted = webviewController.loadingState
+            .firstWhere((state) => state == LoadingState.navigationCompleted);
 
-      final textController = TextEditingController();
-      const textFieldKey = Key('flutter-text-field');
+        final textController = TextEditingController();
+        const textFieldKey = Key('flutter-text-field');
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    key: textFieldKey,
-                    controller: textController,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: 'Flutter text field',
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: TextField(
+                      key: textFieldKey,
+                      controller: textController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Flutter text field',
+                      ),
                     ),
                   ),
-                ),
-                Expanded(child: Webview(webviewController)),
-              ],
+                  Expanded(child: Webview(webviewController)),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pump();
+        );
+        await tester.pump();
 
-      // Locate the native windows.
-      final topHwnd = FindWindow(
-          TEXT('FLUTTER_RUNNER_WIN32_WINDOW'), nullptr.cast<Utf16>());
-      expect(topHwnd, isNot(equals(0)),
-          reason: 'top-level Flutter runner window not found');
-      final viewHwnd =
-          FindWindowEx(topHwnd, NULL, TEXT('FLUTTERVIEW'), nullptr.cast());
-      expect(viewHwnd, isNot(equals(0)),
-          reason: 'FLUTTERVIEW child window not found');
+        // Locate the native windows.
+        final topHwnd = FindWindow(
+            TEXT('FLUTTER_RUNNER_WIN32_WINDOW'), nullptr.cast<Utf16>());
+        expect(topHwnd, isNot(equals(0)),
+            reason: 'top-level Flutter runner window not found');
+        final viewHwnd =
+            FindWindowEx(topHwnd, NULL, TEXT('FLUTTERVIEW'), nullptr.cast());
+        expect(viewHwnd, isNot(equals(0)),
+            reason: 'FLUTTERVIEW child window not found');
 
-      // Deterministic geometry + make sure we start in the foreground.
-      SetWindowPos(topHwnd, NULL, 40, 40, 1000, 700, SWP_SHOWWINDOW);
-      await _waitUntil(
-        tester,
-        () async {
-          if (GetForegroundWindow() == topHwnd) {
-            return true;
-          }
-          _forceForeground(topHwnd);
-          return GetForegroundWindow() == topHwnd;
-        },
-        reason: 'test window must become the foreground window',
-      );
-      await _delay(800);
-      await tester.pump();
+        // Deterministic geometry + make sure we start in the foreground.
+        SetWindowPos(topHwnd, NULL, 40, 40, 1000, 700, SWP_SHOWWINDOW);
+        await _waitUntil(
+          tester,
+          () async {
+            if (GetForegroundWindow() == topHwnd) {
+              return true;
+            }
+            _forceForeground(topHwnd);
+            return GetForegroundWindow() == topHwnd;
+          },
+          reason: 'test window must become the foreground window',
+        );
+        await _delay(800);
+        await tester.pump();
 
-      // Load the test page and wait until it is ready.
-      await webviewController.loadStringContent(_testPageHtml);
-      await navigationCompleted.timeout(const Duration(seconds: 30));
-      await _delay(1500);
-      await tester.pump();
+        // Load the test page and wait until it is ready.
+        await webviewController.loadStringContent(_testPageHtml);
+        await navigationCompleted.timeout(const Duration(seconds: 30));
+        await _delay(1500);
+        await tester.pump();
 
-      final webviewCenter =
-          _screenPoint(tester, find.byType(Webview), viewHwnd);
-      final textFieldCenter =
-          _screenPoint(tester, find.byKey(textFieldKey), viewHwnd);
+        final webviewCenter =
+            _screenPoint(tester, find.byType(Webview), viewHwnd);
+        final textFieldCenter =
+            _screenPoint(tester, find.byKey(textFieldKey), viewHwnd);
 
-      // ----------------------------------------------------------------
-      // 1. Click inside the webview.
-      // ----------------------------------------------------------------
-      _clickAt(webviewCenter);
-      await _waitUntil(
-        tester,
-        () async => webviewController.hasNativeFocus,
-        reason: 'webview should hold native focus after being clicked '
-            '(focus event from WebView2)',
-      );
+        // ----------------------------------------------------------------
+        // 1. Click inside the webview.
+        // ----------------------------------------------------------------
+        _clickAt(webviewCenter);
+        await _waitUntil(
+          tester,
+          () async => webviewController.hasNativeFocus,
+          reason: 'webview should hold native focus after being clicked '
+              '(focus event from WebView2)',
+        );
 
-      // The original #230 symptom: the whole window lost activation here.
-      expect(GetForegroundWindow(), equals(topHwnd),
-          reason: 'clicking the webview must not deactivate the host window '
-              '(jnschulze/flutter-webview-windows#230)');
+        // The original #230 symptom: the whole window lost activation here.
+        expect(GetForegroundWindow(), equals(topHwnd),
+            reason: 'clicking the webview must not deactivate the host window '
+                '(jnschulze/flutter-webview-windows#230)');
 
-      final webviewFocusHwnd = _globalFocusHwnd();
-      expect(webviewFocusHwnd, isNot(equals(viewHwnd)),
-          reason: 'WebView2 should hold real Win32 focus while typing');
-      expect(IsChild(viewHwnd, webviewFocusHwnd), isNot(equals(0)),
-          reason: 'the WebView2 input window must live inside the Flutter '
-              'view window tree (reparenting fix)');
+        final webviewFocusHwnd = _globalFocusHwnd();
+        expect(webviewFocusHwnd, isNot(equals(viewHwnd)),
+            reason: 'WebView2 should hold real Win32 focus while typing');
+        expect(IsChild(viewHwnd, webviewFocusHwnd), isNot(equals(0)),
+            reason: 'the WebView2 input window must live inside the Flutter '
+                'view window tree (reparenting fix)');
 
-      // ----------------------------------------------------------------
-      // 2. Real typing reaches the web page.
-      // ----------------------------------------------------------------
-      _typeText('ab');
-      await _waitUntil(
-        tester,
-        () async => await _webInputValue(webviewController) == 'ab',
-        reason: 'keystrokes should reach the web page input',
-      );
+        // ----------------------------------------------------------------
+        // 2. Real typing reaches the web page.
+        // ----------------------------------------------------------------
+        _typeText('ab');
+        await _waitUntil(
+          tester,
+          () async => await _webInputValue(webviewController) == 'ab',
+          reason: 'keystrokes should reach the web page input',
+        );
 
-      // ----------------------------------------------------------------
-      // 3. Click the Flutter text field; focus must return immediately.
-      // ----------------------------------------------------------------
-      _clickAt(textFieldCenter);
-      await _waitUntil(
-        tester,
-        () async => _globalFocusHwnd() == viewHwnd,
-        reason: 'Win32 focus should return to the Flutter view as soon as '
-            'Flutter UI is clicked (no second click required)',
-      );
-      expect(GetForegroundWindow(), equals(topHwnd),
-          reason: 'window must stay active during the focus handover');
+        // ----------------------------------------------------------------
+        // 3. Click the Flutter text field; focus must return immediately.
+        // ----------------------------------------------------------------
+        _clickAt(textFieldCenter);
+        await _waitUntil(
+          tester,
+          () async => _globalFocusHwnd() == viewHwnd,
+          reason: 'Win32 focus should return to the Flutter view as soon as '
+              'Flutter UI is clicked (no second click required)',
+        );
+        expect(GetForegroundWindow(), equals(topHwnd),
+            reason: 'window must stay active during the focus handover');
 
-      _typeText('cd');
-      await _waitUntil(
-        tester,
-        () async => textController.text.contains('cd'),
-        reason: 'typing after clicking Flutter UI must reach the TextField',
-      );
+        _typeText('cd');
+        await _waitUntil(
+          tester,
+          () async => textController.text.contains('cd'),
+          reason: 'typing after clicking Flutter UI must reach the TextField',
+        );
 
-      // ----------------------------------------------------------------
-      // 4. Round trip: back into the webview.
-      // ----------------------------------------------------------------
-      _clickAt(webviewCenter);
-      await _waitUntil(
-        tester,
-        () async => webviewController.hasNativeFocus,
-        reason: 'webview should be focusable again after the round trip',
-      );
-      _typeText('ef');
-      await _waitUntil(
-        tester,
-        () async {
-          final value = await _webInputValue(webviewController);
-          return value is String && value.contains('ef');
-        },
-        reason: 'keystrokes should reach the web page input again',
-      );
-      expect(GetForegroundWindow(), equals(topHwnd));
+        // ----------------------------------------------------------------
+        // 4. Round trip: back into the webview.
+        // ----------------------------------------------------------------
+        _clickAt(webviewCenter);
+        await _waitUntil(
+          tester,
+          () async => webviewController.hasNativeFocus,
+          reason: 'webview should be focusable again after the round trip',
+        );
+        _typeText('ef');
+        await _waitUntil(
+          tester,
+          () async {
+            final value = await _webInputValue(webviewController);
+            return value is String && value.contains('ef');
+          },
+          reason: 'keystrokes should reach the web page input again',
+        );
+        expect(GetForegroundWindow(), equals(topHwnd));
 
-      // Tear down cleanly.
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump();
-      await webviewController.dispose();
+        // Tear down cleanly.
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+        await webviewController.dispose();
       } finally {
         binding.shouldPropagateDevicePointerEvents = false;
       }
