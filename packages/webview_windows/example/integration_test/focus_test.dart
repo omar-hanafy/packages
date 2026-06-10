@@ -90,11 +90,19 @@ void main() {
 
       // Deterministic geometry + make sure we start in the foreground.
       SetWindowPos(topHwnd, NULL, 40, 40, 1000, 700, SWP_SHOWWINDOW);
-      SetForegroundWindow(topHwnd);
+      await _waitUntil(
+        tester,
+        () async {
+          if (GetForegroundWindow() == topHwnd) {
+            return true;
+          }
+          _forceForeground(topHwnd);
+          return GetForegroundWindow() == topHwnd;
+        },
+        reason: 'test window must become the foreground window',
+      );
       await _delay(800);
       await tester.pump();
-      expect(GetForegroundWindow(), equals(topHwnd),
-          reason: 'test window must start as the foreground window');
 
       // Load the test page and wait until it is ready.
       await webviewController.loadStringContent(_testPageHtml);
@@ -221,6 +229,24 @@ int _globalFocusHwnd() {
   } finally {
     calloc.free(info);
   }
+}
+
+/// Brings [hwnd] to the foreground. Simulates an ALT tap first, which lifts
+/// the SetForegroundWindow lock for the calling process (documented Win32
+/// behavior), making this reliable on CI runners.
+void _forceForeground(int hwnd) {
+  final alt = calloc<INPUT>(2);
+  try {
+    alt[0].type = INPUT_KEYBOARD;
+    alt[0].Anonymous.ki.wVk = VK_MENU;
+    alt[1].type = INPUT_KEYBOARD;
+    alt[1].Anonymous.ki.wVk = VK_MENU;
+    alt[1].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+    SendInput(2, alt, sizeOf<INPUT>());
+  } finally {
+    calloc.free(alt);
+  }
+  SetForegroundWindow(hwnd);
 }
 
 /// Sends a real (hardware-level) left mouse click at the given screen point.

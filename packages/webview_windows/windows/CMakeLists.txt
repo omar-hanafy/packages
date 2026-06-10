@@ -72,11 +72,6 @@ add_library(${PLUGIN_NAME} SHARED ${PLUGIN_SOURCES})
 # plugin target builds.
 add_dependencies(${PLUGIN_NAME} ${PROJECT_NAME}_DEPENDENCIES_DOWNLOAD)
 
-# Configure compiler options
-if(MSVC)
-  target_compile_options(${PLUGIN_NAME} PRIVATE "/await")
-endif()
-
 # Apply standard settings
 apply_standard_settings(${PLUGIN_NAME})
 
