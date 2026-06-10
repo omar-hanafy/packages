@@ -172,6 +172,7 @@ class Webview {
   bool SetZoomFactor(double factor);
   bool Suspend();
   bool Resume();
+  bool MoveFocus();
 
   bool SetVirtualHostNameMapping(const std::string& hostName,
                                  const std::string& path,
@@ -273,7 +274,8 @@ class Webview {
 
   Webview(
       wil::com_ptr<ICoreWebView2CompositionController> composition_controller,
-      WebviewHost* host, HWND hwnd, bool owns_window, bool offscreen_only);
+      WebviewHost* host, HWND hwnd, HWND flutter_view_hwnd, bool owns_window,
+      bool offscreen_only);
 
   bool CreateSurface(
       winrt::com_ptr<ABI::Windows::UI::Composition::ICompositor> compositor,

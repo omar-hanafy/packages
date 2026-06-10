@@ -55,16 +55,17 @@ WebviewHost::WebviewHost(WebviewPlatform* platform,
   compositor_ = platform->graphics_context()->CreateCompositor();
 }
 
-void WebviewHost::CreateWebview(HWND hwnd, bool offscreen_only,
-                                bool owns_window,
+void WebviewHost::CreateWebview(HWND hwnd, HWND flutter_view_hwnd,
+                                bool offscreen_only, bool owns_window,
                                 WebviewCreationCallback callback) {
   CreateWebViewCompositionController(
       hwnd, [=, self = this](
                 wil::com_ptr<ICoreWebView2CompositionController> controller,
                 std::unique_ptr<WebviewCreationError> error) {
         if (controller) {
-          std::unique_ptr<Webview> webview(new Webview(
-              std::move(controller), self, hwnd, owns_window, offscreen_only));
+          std::unique_ptr<Webview> webview(
+              new Webview(std::move(controller), self, hwnd, flutter_view_hwnd,
+                          owns_window, offscreen_only));
           callback(std::move(webview), nullptr);
         } else {
           callback(nullptr, std::move(error));

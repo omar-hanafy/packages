@@ -1,3 +1,27 @@
+## 0.5.0
+
+Fork release (omar-hanafy/packages) fixing the window focus loss tracked in
+[jnschulze/flutter-webview-windows#230](https://github.com/jnschulze/flutter-webview-windows/issues/230).
+
+* **Fix host window deactivation on click.** The WebView2 browser windows are
+  now reparented into the Flutter view's window tree (`put_ParentWindow`)
+  instead of living under a message-only window. Clicking the webview no
+  longer deactivates the Flutter window (gray title bar, dead shortcuts).
+* **Automatic focus return.** Clicking anywhere in Flutter that is not a
+  webview now hands Win32 keyboard focus back to the Flutter view instantly
+  (new `reclaimFocus` plugin method driven by a global pointer listener).
+* Add `WebviewController.focus()` to give the webview keyboard focus
+  programmatically (WebView2 `MoveFocus`).
+* Add `WebviewController.releaseFocus()` to return keyboard focus to Flutter
+  programmatically.
+* Add `WebviewController.onFocusChanged` stream and
+  `WebviewController.hasNativeFocus` reflecting the WebView2 native focus
+  state.
+* Close the WebView2 controller explicitly on dispose.
+* Ensure NuGet dependencies are downloaded before the plugin target builds.
+* Includes all upstream changes up to `ed81bbe` (scroll fixes, HTML `select`
+  fix, CMake modernization).
+
 ## 0.4.0
 
 * Enable MSVC coroutine support ([#278](https://github.com/jnschulze/flutter-webview-windows/pull/278))

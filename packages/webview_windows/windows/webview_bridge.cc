@@ -41,6 +41,7 @@ constexpr auto kMethodClearCache = "clearCache";
 constexpr auto kMethodSetCacheDisabled = "setCacheDisabled";
 constexpr auto kMethodSetPopupWindowPolicy = "setPopupWindowPolicy";
 constexpr auto kMethodSetFpsLimit = "setFpsLimit";
+constexpr auto kMethodMoveFocus = "moveFocus";
 
 constexpr auto kEventType = "type";
 constexpr auto kEventValue = "value";
@@ -321,6 +322,14 @@ void WebviewBridge::RegisterEventHandlers() {
              contains_fullscreen_element}});
         EmitEvent(event);
       });
+
+  webview_->OnFocusChanged([this](bool focused) {
+    const auto event = flutter::EncodableValue(
+        flutter::EncodableMap{{flutter::EncodableValue(kEventType),
+                               flutter::EncodableValue("focus")},
+                              {flutter::EncodableValue(kEventValue), focused}});
+    EmitEvent(event);
+  });
 }
 
 void WebviewBridge::OnPermissionRequested(
@@ -693,6 +702,14 @@ void WebviewBridge::HandleMethodCall(
                                                : std::make_optional(*value));
       return result->Success();
     }
+  }
+
+  // moveFocus
+  if (method_name.compare(kMethodMoveFocus) == 0) {
+    if (webview_->MoveFocus()) {
+      return result->Success();
+    }
+    return result->Error(kMethodFailed);
   }
 
   result->NotImplemented();

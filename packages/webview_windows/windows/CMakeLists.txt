@@ -68,6 +68,10 @@ set(PLUGIN_SOURCES
 # Create the plugin library
 add_library(${PLUGIN_NAME} SHARED ${PLUGIN_SOURCES})
 
+# The NuGet packages (and their .targets imports) must exist before the
+# plugin target builds.
+add_dependencies(${PLUGIN_NAME} ${PROJECT_NAME}_DEPENDENCIES_DOWNLOAD)
+
 # Configure compiler options
 if(MSVC)
   target_compile_options(${PLUGIN_NAME} PRIVATE "/await")

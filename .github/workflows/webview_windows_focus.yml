@@ -1,0 +1,49 @@
+name: webview_windows focus CI
+
+on:
+  push:
+    branches:
+      - webview-windows-2026-focus-fix
+  workflow_dispatch:
+
+jobs:
+  focus-integration-test:
+    name: Real-input focus test (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Analyze package
+        working-directory: packages/webview_windows
+        run: |
+          flutter pub get
+          dart analyze --no-fatal-warnings .
+
+      - name: Pub get (example)
+        working-directory: packages/webview_windows/example
+        run: flutter pub get
+
+      - name: Run real-input focus integration test
+        working-directory: packages/webview_windows/example
+        run: flutter test integration_test/focus_test.dart -d windows -r expanded --timeout 900s
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-logs
+          path: |
+            packages/webview_windows/example/build/windows/**/*.log
+          if-no-files-found: ignore

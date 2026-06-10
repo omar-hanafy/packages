@@ -58,7 +58,8 @@ inline COREWEBVIEW2_PERMISSION_STATE WebViewPermissionStateToCW2PermissionState(
 
 Webview::Webview(
     wil::com_ptr<ICoreWebView2CompositionController> composition_controller,
-    WebviewHost* host, HWND hwnd, bool owns_window, bool offscreen_only)
+    WebviewHost* host, HWND hwnd, HWND flutter_view_hwnd, bool owns_window,
+    bool offscreen_only)
     : composition_controller_(std::move(composition_controller)),
       host_(host),
       hwnd_(hwnd),
@@ -75,6 +76,18 @@ Webview::Webview(
   webview_controller_->put_ShouldDetectMonitorScaleChanges(FALSE);
   webview_controller_->put_RasterizationScale(1.0);
 
+  if (flutter_view_hwnd) {
+    // Reparent the WebView2 input windows into the Flutter view's window
+    // tree. WebView2 composition hosting has no keyboard injection API, so
+    // the browser's hidden input window must take real Win32 focus for
+    // typing to work. With the (default) message-only parent window, that
+    // focus change leaves the host window's tree and deactivates it (gray
+    // title bar, Flutter loses all key events). Parenting to the Flutter
+    // view keeps focus changes inside one top-level tree.
+    // See https://github.com/jnschulze/flutter-webview-windows/issues/230.
+    webview_controller_->put_ParentWindow(flutter_view_hwnd);
+  }
+
   wil::com_ptr<ICoreWebView2Settings> settings;
   if (SUCCEEDED(webview_->get_Settings(settings.put()))) {
     settings2_ = settings.try_query<ICoreWebView2Settings2>();
@@ -90,6 +103,11 @@ Webview::Webview(
 }
 
 Webview::~Webview() {
+  if (webview_controller_) {
+    // Explicitly close the controller so WebView2 tears down the browser
+    // windows that were reparented into the Flutter view's window tree.
+    webview_controller_->Close();
+  }
   if (owns_window_) {
     DestroyWindow(hwnd_);
   }
@@ -799,6 +817,14 @@ bool Webview::Resume() {
   }
   return webview->Resume() == S_OK &&
          webview_controller_->put_IsVisible(true) == S_OK;
+}
+
+bool Webview::MoveFocus() {
+  if (!IsValid()) {
+    return false;
+  }
+  return webview_controller_->MoveFocus(
+             COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC) == S_OK;
 }
 
 bool Webview::SetVirtualHostNameMapping(

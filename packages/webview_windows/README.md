@@ -1,7 +1,13 @@
-# webview_windows
+# webview_windows (focus-fix fork)
 
-[![CI](https://github.com/jnschulze/flutter-webview-windows/actions/workflows/ci.yml/badge.svg)](https://github.com/jnschulze/flutter-webview-windows/actions/workflows/ci.yml)
-[![Pub](https://img.shields.io/pub/v/webview_windows.svg)](https://pub.dartlang.org/packages/webview_windows)
+> **Fork notice:** This is a fork of
+> [jnschulze/flutter-webview-windows](https://github.com/jnschulze/flutter-webview-windows)
+> (`main` @ `ed81bbe`) that fixes
+> [issue #230](https://github.com/jnschulze/flutter-webview-windows/issues/230):
+> clicking inside the webview no longer deactivates the host Flutter window,
+> and clicking back on Flutter UI restores Flutter's keyboard handling
+> immediately. See `CHANGELOG.md` (0.5.0) for details. Maintained at
+> [omar-hanafy/packages](https://github.com/omar-hanafy/packages).
 
 A [Flutter](https://flutter.dev/) WebView plugin for Windows built on [Microsoft Edge WebView2](https://docs.microsoft.com/en-us/microsoft-edge/webview2/).
 

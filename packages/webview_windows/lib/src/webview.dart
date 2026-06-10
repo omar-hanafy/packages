@@ -181,6 +181,19 @@ class WebviewController extends ValueNotifier<WebviewValue> {
   Stream<bool> get containsFullScreenElementChanged =>
       _containsFullScreenElementChangedStreamController.stream;
 
+  final StreamController<bool> _focusChangedStreamController =
+      StreamController<bool>.broadcast();
+
+  /// A stream reflecting whether the underlying WebView2 control currently
+  /// holds native (Win32) keyboard focus.
+  Stream<bool> get onFocusChanged => _focusChangedStreamController.stream;
+
+  bool _hasNativeFocus = false;
+
+  /// Whether the underlying WebView2 control currently holds native (Win32)
+  /// keyboard focus.
+  bool get hasNativeFocus => _hasNativeFocus;
+
   WebviewController() : super(WebviewValue.uninitialized());
 
   /// Initializes the underlying platform view.
@@ -245,6 +258,10 @@ class WebviewController extends ValueNotifier<WebviewValue> {
             break;
           case 'containsFullScreenElementChanged':
             _containsFullScreenElementChangedStreamController.add(map['value']);
+            break;
+          case 'focus':
+            _hasNativeFocus = map['value'] == true;
+            _focusChangedStreamController.add(_hasNativeFocus);
             break;
         }
       });
@@ -508,6 +525,34 @@ class WebviewController extends ValueNotifier<WebviewValue> {
     return _methodChannel.invokeMethod('resume');
   }
 
+  /// Gives the webview native (Win32) keyboard focus.
+  ///
+  /// This allows the user to type into the web content without having to
+  /// click into it first. Clicking into the webview moves native focus to it
+  /// automatically; this method exists for programmatic focus handoff.
+  Future<void> focus() async {
+    if (_isDisposed) {
+      return;
+    }
+    assert(value.isInitialized);
+    return _methodChannel.invokeMethod('moveFocus');
+  }
+
+  /// Returns native (Win32) keyboard focus to the Flutter view, restoring
+  /// Flutter's keyboard event handling (shortcuts, text fields, etc.).
+  ///
+  /// This is invoked automatically whenever the user clicks outside of any
+  /// [Webview] while a webview holds native focus. Calling it manually is
+  /// only needed when moving focus away from the webview programmatically.
+  static Future<void> releaseFocus() async {
+    try {
+      await _pluginChannel.invokeMethod('reclaimFocus');
+    } on Exception {
+      // The plugin is unavailable (e.g. running on a non-Windows host or in
+      // a widget test); there is no native focus to release in that case.
+    }
+  }
+
   /// Adds a Virtual Host Name Mapping.
   ///
   /// Please refer to
@@ -652,6 +697,18 @@ class _WebviewState extends State<Webview> {
         _cursor = cursor;
       });
     });
+
+    _WebviewFocusCoordinator.register(this);
+  }
+
+  /// The global (logical) bounds currently covered by this webview, or null
+  /// if it is not laid out.
+  Rect? _globalBounds() {
+    final box = _key.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) {
+      return null;
+    }
+    return box.localToGlobal(Offset.zero) & box.size;
   }
 
   @override
@@ -768,7 +825,66 @@ class _WebviewState extends State<Webview> {
 
   @override
   void dispose() {
+    _WebviewFocusCoordinator.unregister(this);
     super.dispose();
     _cursorSubscription?.cancel();
+  }
+}
+
+/// Coordinates Win32 keyboard focus between Flutter and all live [Webview]s.
+///
+/// WebView2's composition (offscreen) hosting has no keyboard injection API,
+/// so the browser takes real Win32 focus whenever a forwarded click lands in
+/// web content. Without coordination, a later click on Flutter UI would leave
+/// native focus with the webview and Flutter would not receive keyboard
+/// events again until the window is re-activated.
+///
+/// This coordinator observes every pointer-down event in the app:
+/// - If it hits a [Webview], nothing needs to happen; the forwarded mouse
+///   input lets WebView2 take focus by itself.
+/// - If it hits anything else while a webview holds native focus, focus is
+///   handed back to the Flutter view via [WebviewController.releaseFocus].
+class _WebviewFocusCoordinator {
+  static final Set<_WebviewState> _instances = <_WebviewState>{};
+  static bool _routeInstalled = false;
+
+  static void register(_WebviewState state) {
+    _instances.add(state);
+    if (!_routeInstalled) {
+      _routeInstalled = true;
+      GestureBinding.instance.pointerRouter.addGlobalRoute(_handlePointerEvent);
+    }
+  }
+
+  static void unregister(_WebviewState state) {
+    _instances.remove(state);
+    if (_instances.isEmpty && _routeInstalled) {
+      _routeInstalled = false;
+      GestureBinding.instance.pointerRouter
+          .removeGlobalRoute(_handlePointerEvent);
+    }
+  }
+
+  static void _handlePointerEvent(PointerEvent event) {
+    if (event is! PointerDownEvent) {
+      return;
+    }
+
+    var anyWebviewFocused = false;
+    for (final state in _instances) {
+      final rect = state._globalBounds();
+      if (rect != null && rect.contains(event.position)) {
+        // The pointer went down on a webview; the forwarded mouse input
+        // makes WebView2 take care of its own focus.
+        return;
+      }
+      if (state._controller._hasNativeFocus) {
+        anyWebviewFocused = true;
+      }
+    }
+
+    if (anyWebviewFocused) {
+      WebviewController.releaseFocus();
+    }
   }
 }

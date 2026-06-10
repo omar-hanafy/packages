@@ -23,6 +23,7 @@ constexpr auto kMethodInitialize = "initialize";
 constexpr auto kMethodDispose = "dispose";
 constexpr auto kMethodInitializeEnvironment = "initializeEnvironment";
 constexpr auto kMethodGetWebViewVersion = "getWebViewVersion";
+constexpr auto kMethodReclaimFocus = "reclaimFocus";
 
 constexpr auto kErrorCodeInvalidId = "invalid_id";
 constexpr auto kErrorCodeEnvironmentCreationFailed =
@@ -49,8 +50,7 @@ class WebviewWindowsPlugin : public flutter::Plugin {
  public:
   static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar);
 
-  WebviewWindowsPlugin(flutter::TextureRegistrar* textures,
-                       flutter::BinaryMessenger* messenger);
+  WebviewWindowsPlugin(flutter::PluginRegistrarWindows* registrar);
 
   virtual ~WebviewWindowsPlugin();
 
@@ -60,10 +60,14 @@ class WebviewWindowsPlugin : public flutter::Plugin {
   std::unordered_map<int64_t, std::unique_ptr<WebviewBridge>> instances_;
 
   WNDCLASS window_class_ = {};
+  flutter::PluginRegistrarWindows* registrar_;
   flutter::TextureRegistrar* textures_;
   flutter::BinaryMessenger* messenger_;
 
   bool InitPlatform();
+
+  // Returns the HWND of the Flutter view, or nullptr if unavailable.
+  HWND GetFlutterViewHwnd();
 
   void CreateWebviewInstance(
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>);
@@ -81,8 +85,7 @@ void WebviewWindowsPlugin::RegisterWithRegistrar(
           registrar->messenger(), "io.jns.webview.win",
           &flutter::StandardMethodCodec::GetInstance());
 
-  auto plugin = std::make_unique<WebviewWindowsPlugin>(
-      registrar->texture_registrar(), registrar->messenger());
+  auto plugin = std::make_unique<WebviewWindowsPlugin>(registrar);
 
   channel->SetMethodCallHandler(
       [plugin_pointer = plugin.get()](const auto& call, auto result) {
@@ -92,9 +95,11 @@ void WebviewWindowsPlugin::RegisterWithRegistrar(
   registrar->AddPlugin(std::move(plugin));
 }
 
-WebviewWindowsPlugin::WebviewWindowsPlugin(flutter::TextureRegistrar* textures,
-                                           flutter::BinaryMessenger* messenger)
-    : textures_(textures), messenger_(messenger) {
+WebviewWindowsPlugin::WebviewWindowsPlugin(
+    flutter::PluginRegistrarWindows* registrar)
+    : registrar_(registrar),
+      textures_(registrar->texture_registrar()),
+      messenger_(registrar->messenger()) {
   window_class_.lpszClassName = L"FlutterWebviewMessage";
   window_class_.lpfnWndProc = &DefWindowProc;
   RegisterClass(&window_class_);
@@ -161,6 +166,18 @@ void WebviewWindowsPlugin::HandleMethodCall(
     }
   }
 
+  if (method_call.method_name().compare(kMethodReclaimFocus) == 0) {
+    // Moves Win32 keyboard focus back to the Flutter view. This is invoked
+    // by the Dart side whenever the user clicks outside of any webview while
+    // a webview holds native focus, restoring Flutter's keyboard handling
+    // without a window activation round trip.
+    auto view_hwnd = GetFlutterViewHwnd();
+    if (view_hwnd) {
+      SetFocus(view_hwnd);
+    }
+    return result->Success(flutter::EncodableValue(view_hwnd != nullptr));
+  }
+
   if (method_call.method_name().compare(kMethodInitialize) == 0) {
     return CreateWebviewInstance(std::move(result));
   }
@@ -201,7 +218,7 @@ void WebviewWindowsPlugin::CreateWebviewInstance(
   std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>>
       shared_result = std::move(result);
   webview_host_->CreateWebview(
-      hwnd, true, true,
+      hwnd, GetFlutterViewHwnd(), true, true,
       [shared_result, this](std::unique_ptr<Webview> webview,
                             std::unique_ptr<WebviewCreationError> error) {
         if (!webview) {
@@ -236,6 +253,17 @@ bool WebviewWindowsPlugin::InitPlatform() {
     platform_ = std::make_unique<WebviewPlatform>();
   }
   return platform_->IsSupported();
+}
+
+HWND WebviewWindowsPlugin::GetFlutterViewHwnd() {
+  if (!registrar_) {
+    return nullptr;
+  }
+  auto view = registrar_->GetView();
+  if (!view) {
+    return nullptr;
+  }
+  return view->GetNativeWindow();
 }
 
 }  // namespace
