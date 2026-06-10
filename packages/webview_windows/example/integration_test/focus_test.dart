@@ -43,11 +43,12 @@ void main() {
       binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
       // Without this, the live test binding swallows real device pointer
       // events instead of dispatching them to the widget tree. The binding
-      // requires the flag to be restored before the test ends.
+      // verifies the flag is restored at the END OF THE TEST BODY (before
+      // tearDown callbacks run), so it must be reset in a finally block.
       binding.shouldPropagateDevicePointerEvents = true;
-      addTearDown(() => binding.shouldPropagateDevicePointerEvents = false);
 
       final webviewController = WebviewController();
+      try {
       await webviewController.initialize();
 
       final navigationCompleted = webviewController.loadingState
@@ -194,6 +195,9 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
       await webviewController.dispose();
+      } finally {
+        binding.shouldPropagateDevicePointerEvents = false;
+      }
     },
     timeout: const Timeout(Duration(minutes: 5)),
   );
